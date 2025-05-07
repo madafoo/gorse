@@ -16,6 +16,7 @@ package base
 
 import (
 	"fmt"
+	"runtime/debug"
 	"strings"
 
 	"github.com/zhenghaoz/gorse/base/log"
@@ -70,7 +71,7 @@ func NewMatrixInt(row, col int) [][]int {
 // CheckPanic catches panic.
 func CheckPanic() {
 	if r := recover(); r != nil {
-		log.Logger().Error("panic recovered", zap.Any("panic", r))
+		log.Logger().Error("panic recovered", zap.Any("panic", r), zap.Any("stack", string(debug.Stack())))
 	}
 }
 
