@@ -1469,6 +1469,11 @@ func (s *RestServer) batchInsertItems(ctx context.Context, response *restful.Res
 	}
 	insertItemsTime = time.Since(start)
 
+	// update last update item timestamp
+	if err = s.CacheClient.Set(ctx, cache.Time(cache.Key(cache.GlobalMeta, cache.LastUpdateLatestItemsTime), start)); err != nil {
+		InternalServerError(response, err)
+		return
+	}
 	// insert modify timestamp
 	start = time.Now()
 	categories := mapset.NewSet[string]()
@@ -2011,10 +2016,17 @@ func withWildCard(categories []string) []string {
 // ReadCategories tries to read categories from the request. If the category is not found, it returns an empty string.
 func ReadCategories(request *restful.Request) []string {
 	if pathValue := request.PathParameter("category"); pathValue != "" {
-		return []string{pathValue}
+		return strings.Split(pathValue, ",")
 	} else if queryValues := request.QueryParameters("category"); len(queryValues) > 0 {
 		return queryValues
 	} else {
+		_, ok := request.PathParameters()["category"]
+		if !ok {
+			_, ok = request.Request.URL.Query()["category"]
+			if !ok {
+				return nil
+			}
+		}
 		return []string{""}
 	}
 }
