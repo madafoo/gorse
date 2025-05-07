@@ -185,10 +185,10 @@ func (baseModel *BaseMatrixFactorization) Predict(userId, itemId string) float32
 	userIndex := baseModel.UserIndex.Id(userId)
 	itemIndex := baseModel.ItemIndex.Id(itemId)
 	if userIndex < 0 {
-		log.Logger().Warn("unknown user", zap.String("user_id", userId))
+		log.Logger().Debug("unknown user", zap.String("user_id", userId))
 	}
 	if itemIndex < 0 {
-		log.Logger().Warn("unknown item", zap.String("item_id", itemId))
+		log.Logger().Debug("unknown item", zap.String("item_id", itemId))
 	}
 	return baseModel.internalPredict(userIndex, itemIndex)
 }
@@ -198,7 +198,7 @@ func (baseModel *BaseMatrixFactorization) internalPredict(userIndex, itemIndex i
 	if itemIndex >= 0 && userIndex >= 0 {
 		ret = floats.Dot(baseModel.UserFactor[userIndex], baseModel.ItemFactor[itemIndex])
 	} else {
-		log.Logger().Warn("unknown user or item")
+		log.Logger().Debug("unknown user or item")
 	}
 	return ret
 }
