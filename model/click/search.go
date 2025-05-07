@@ -174,10 +174,17 @@ func (searcher *ModelSearcher) Fit(ctx context.Context, trainSet, valSet *Datase
 	searcher.bestModel = r.BestModel
 	searcher.bestScore = r.BestScore
 
+	var params zap.Field
+	if searcher.bestModel == nil {
+		params = zap.Any("params", "empty params")
+	} else {
+		params = zap.Any("params", searcher.bestModel.GetParams())
+	}
+
 	searchTime := time.Since(startTime)
 	log.Logger().Info("complete ranking model search",
 		zap.Float32("auc", searcher.bestScore.AUC),
-		zap.Any("params", searcher.bestModel.GetParams()),
+		params,
 		zap.String("search_time", searchTime.String()))
 	return nil
 }
