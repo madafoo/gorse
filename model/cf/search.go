@@ -187,12 +187,25 @@ func (searcher *ModelSearcher) Fit(ctx context.Context, trainSet, valSet dataset
 		searcher.bestMutex.Unlock()
 	}
 	searchTime := time.Since(startTime)
+	var (
+		bestModel zap.Field
+		params zap.Field
+	)
+
+	if searcher.bestModel != nil {
+		bestModel = zap.String("model", GetModelName(searcher.bestModel))
+		params = zap.Any("params", searcher.bestModel.GetParams())
+	} else {
+		bestModel = zap.String("model", "empty")
+		params = zap.String("params", "empty")
+	}
+
 	log.Logger().Info("complete ranking model search",
 		zap.Float32("NDCG@10", searcher.bestScore.NDCG),
 		zap.Float32("Precision@10", searcher.bestScore.Precision),
 		zap.Float32("Recall@10", searcher.bestScore.Recall),
-		zap.String("model", GetModelName(searcher.bestModel)),
-		zap.Any("params", searcher.bestModel.GetParams()),
+		bestModel,
+		params,
 		zap.String("search_time", searchTime.String()))
 	return nil
 }
