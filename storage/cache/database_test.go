@@ -28,6 +28,8 @@ import (
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -460,6 +462,57 @@ func (suite *baseTestSuite) TestSubsetDocument() {
 	suite.NoError(err)
 	suite.Len(documents, 1)
 	suite.Equal("2", documents[0].Id)
+}
+
+func (suite *baseTestSuite) TestScanScores() {
+	// add scores
+	timestamp := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
+	scores := map[lo.Tuple2[string, string]][]Score{
+		{"a", "b"}: {
+			{Id: "1", Score: 1, Categories: []string{"a", "b"}, Timestamp: timestamp},
+			{Id: "2", Score: 2, Categories: []string{"b", "c"}, Timestamp: timestamp},
+			{Id: "3", Score: 3, Categories: []string{"b"}, Timestamp: timestamp},
+		},
+		{"a", "c"}: {
+			{Id: "4", Score: 4, Categories: []string{"a", "b"}, Timestamp: timestamp},
+			{Id: "5", Score: 5, Categories: []string{"b", "c"}, Timestamp: timestamp},
+			{Id: "6", Score: 6, Categories: []string{"b"}, Timestamp: timestamp},
+		},
+		{"b", "c"}: {
+			{Id: "7", Score: 7, Categories: []string{"a", "b"}, Timestamp: timestamp},
+			{Id: "8", Score: 8, Categories: []string{"b", "c"}, Timestamp: timestamp},
+			{Id: "9", Score: 9, Categories: []string{"b"}, Timestamp: timestamp},
+		},
+	}
+	for k, v := range scores {
+		err := suite.AddScores(context.Background(), k.A, k.B, v)
+		suite.NoError(err)
+	}
+
+	// scan scores
+	totalScores := 0
+	ctx := context.Background()
+	err := suite.ScanScores(ctx, func(collection, id, subset string, t time.Time) error {
+		totalScores++
+		suite.Equal(timestamp, t.UTC())
+		return nil
+	})
+	suite.NoError(err)
+	suite.Equal(9, totalScores)
+
+	// scan scores with timeout
+	scanScores := 0
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
+	defer cancel()
+	err = suite.ScanScores(ctx, func(collection, id, subset string, timestamp time.Time) error {
+		time.Sleep(time.Millisecond)
+		scanScores++
+		return nil
+	})
+	if err != nil && status.Code(err) != codes.DeadlineExceeded {
+		suite.ErrorIs(err, context.DeadlineExceeded)
+	}
+	suite.Less(scanScores, 9)
 }
 
 func (suite *baseTestSuite) TestTimeSeries() {
