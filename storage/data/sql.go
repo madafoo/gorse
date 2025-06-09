@@ -29,6 +29,7 @@ import (
 	"github.com/samber/lo"
 	"github.com/zhenghaoz/gorse/base/jsonutil"
 	"github.com/zhenghaoz/gorse/base/log"
+	"github.com/zhenghaoz/gorse/common/expression"
 	"github.com/zhenghaoz/gorse/storage"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -107,6 +108,21 @@ func NewClickhouseUser(user User) (clickhouseUser ClickhouseUser) {
 	clickhouseUser.SQLUser = NewSQLUser(user)
 	clickhouseUser.Version = time.Now().In(time.UTC)
 	return
+}
+
+func FeedbackTypeExpressionToSQL(db *gorm.DB, e expression.FeedbackTypeExpression) *gorm.DB {
+	switch e.ExprType {
+	case expression.Less:
+		return db.Where("feedback_type = ? AND value < ?", e.FeedbackType, e.Value)
+	case expression.LessOrEqual:
+		return db.Where("feedback_type = ? AND value <= ?", e.FeedbackType, e.Value)
+	case expression.Greater:
+		return db.Where("feedback_type = ? AND value > ?", e.FeedbackType, e.Value)
+	case expression.GreaterOrEqual:
+		return db.Where("feedback_type = ? AND value >= ?", e.FeedbackType, e.Value)
+	default:
+		return db.Where("feedback_type = ?", e.FeedbackType)
+	}
 }
 
 // SQLDatabase use MySQL as data storage.
@@ -261,16 +277,16 @@ func (d *SQLDatabase) Init() error {
 			FeedbackType string    `gorm:"column:feedback_type;type:String"`
 			UserId       string    `gorm:"column:user_id;type:String"`
 			ItemId       string    `gorm:"column:item_id;type:String"`
-			Value        float64   `gorm:"column:value;type:AggregateFunction(sum, Float64)"`
-			Timestamp    time.Time `gorm:"column:time_stamp;type:AggregateFunction(any, DateTime64(9,'UTC'))"`
-			Comment      string    `gorm:"column:comment;type:AggregateFunction(any, String)"`
+			Value        float64   `gorm:"column:value;type:SimpleAggregateFunction(sum, Float64)"`
+			Timestamp    time.Time `gorm:"column:time_stamp;type:SimpleAggregateFunction(any, DateTime64(9,'UTC'))"`
+			Comment      string    `gorm:"column:comment;type:SimpleAggregateFunction(any, String)"`
 		}
 		err = d.gormDB.Set("gorm:table_options", "ENGINE = AggregatingMergeTree() ORDER BY (user_id, item_id, feedback_type)").AutoMigrate(AggregatingFeedback{})
 		if err != nil {
 			return errors.Trace(err)
 		}
 		err = d.gormDB.Exec(fmt.Sprintf("CREATE MATERIALIZED VIEW IF NOT EXISTS %s_mv TO %s AS "+
-			"SELECT feedback_type, user_id, item_id, sumState(value) AS value, anyState(time_stamp) AS time_stamp, anyState(comment) AS comment "+
+			"SELECT feedback_type, user_id, item_id, sum(value) AS value, any(time_stamp) AS time_stamp, any(comment) AS comment "+
 			"FROM %s GROUP BY feedback_type, user_id, item_id",
 			d.AggregatingFeedbackTable(), d.AggregatingFeedbackTable(), d.FeedbackTable())).Error
 		if err != nil {
@@ -282,7 +298,7 @@ func (d *SQLDatabase) Init() error {
 			return errors.Trace(err)
 		}
 		err = d.gormDB.Exec(fmt.Sprintf("CREATE MATERIALIZED VIEW IF NOT EXISTS %s_mv TO %s AS "+
-			"SELECT feedback_type, user_id, item_id, sumState(value) AS value, anyState(time_stamp) AS time_stamp, anyState(comment) AS comment "+
+			"SELECT feedback_type, user_id, item_id, sum(value) AS value, any(time_stamp) AS time_stamp, any(comment) AS comment "+
 			"FROM %s GROUP BY feedback_type, user_id, item_id",
 			d.UserFeedbackTable(), d.UserFeedbackTable(), d.FeedbackTable())).Error
 		if err != nil {
@@ -294,7 +310,7 @@ func (d *SQLDatabase) Init() error {
 			return errors.Trace(err)
 		}
 		err = d.gormDB.Exec(fmt.Sprintf("CREATE MATERIALIZED VIEW IF NOT EXISTS %s_mv TO %s AS "+
-			"SELECT feedback_type, user_id, item_id, sumState(value) AS value, anyState(time_stamp) AS time_stamp, anyState(comment) AS comment "+
+			"SELECT feedback_type, user_id, item_id, sum(value) AS value, any(time_stamp) AS time_stamp, any(comment) AS comment "+
 			"FROM %s GROUP BY feedback_type, user_id, item_id",
 			d.ItemFeedbackTable(), d.ItemFeedbackTable(), d.FeedbackTable())).Error
 		if err != nil {
@@ -555,7 +571,7 @@ func (d *SQLDatabase) GetItemFeedback(ctx context.Context, itemId string, feedba
 	tx := d.gormDB.WithContext(ctx)
 	if d.driver == ClickHouse {
 		tx = tx.Table(d.ItemFeedbackTable()).
-			Select("user_id, item_id, feedback_type, sumMerge(value) AS value, anyMerge(time_stamp) AS time_stamp, anyMerge(comment) AS comment").
+			Select("user_id, item_id, feedback_type, sum(value) AS value, any(time_stamp) AS time_stamp, any(comment) AS comment").
 			Group("user_id, item_id, feedback_type")
 	} else {
 		tx = tx.Table(d.FeedbackTable()).
@@ -571,7 +587,11 @@ func (d *SQLDatabase) GetItemFeedback(ctx context.Context, itemId string, feedba
 	}
 	tx.Where("item_id = ?", itemId)
 	if len(feedbackTypes) > 0 {
-		tx.Where("feedback_type IN ?", feedbackTypes)
+		db := d.gormDB
+		for _, feedbackType := range feedbackTypes {
+			db = db.Or("feedback_type = ?", feedbackType)
+		}
+		tx = tx.Where(db)
 	}
 	result, err := tx.Rows()
 	if err != nil {
@@ -754,7 +774,7 @@ func (d *SQLDatabase) GetUserStream(ctx context.Context, batchSize int) (chan []
 }
 
 // GetUserFeedback returns feedback of a user from MySQL.
-func (d *SQLDatabase) GetUserFeedback(ctx context.Context, userId string, endTime *time.Time, feedbackTypes ...string) ([]Feedback, error) {
+func (d *SQLDatabase) GetUserFeedback(ctx context.Context, userId string, endTime *time.Time, feedbackTypes ...expression.FeedbackTypeExpression) ([]Feedback, error) {
 	tx := d.gormDB.WithContext(ctx)
 	if d.driver == ClickHouse {
 		tx = tx.Table(d.UserFeedbackTable())
@@ -762,7 +782,7 @@ func (d *SQLDatabase) GetUserFeedback(ctx context.Context, userId string, endTim
 		tx = tx.Table(d.FeedbackTable())
 	}
 	if d.driver == ClickHouse {
-		tx.Select("feedback_type, user_id, item_id, sumMerge(value), anyMerge(time_stamp) AS time_stamp, anyMerge(comment) AS comment").
+		tx.Select("feedback_type, user_id, item_id, sum(value), any(time_stamp) AS time_stamp, any(comment) AS comment").
 			Group("feedback_type, user_id, item_id")
 		if endTime != nil {
 			tx.Having("time_stamp <= ?", d.convertTimeZone(endTime))
@@ -775,7 +795,11 @@ func (d *SQLDatabase) GetUserFeedback(ctx context.Context, userId string, endTim
 	}
 	tx.Where("user_id = ?", userId)
 	if len(feedbackTypes) > 0 {
-		tx.Where("feedback_type IN ?", feedbackTypes)
+		db := d.gormDB
+		for _, feedbackType := range feedbackTypes {
+			db = FeedbackTypeExpressionToSQL(db, feedbackType)
+		}
+		tx.Where(db)
 	}
 	result, err := tx.Rows()
 	if err != nil {
@@ -975,7 +999,11 @@ func (d *SQLDatabase) GetFeedback(ctx context.Context, cursor string, n int, beg
 		tx.Where("(feedback_type, user_id, item_id) >= (?,?,?)", cursorKey.FeedbackType, cursorKey.UserId, cursorKey.ItemId)
 	}
 	if len(feedbackTypes) > 0 {
-		tx.Where("feedback_type IN ?", feedbackTypes)
+		db := d.gormDB
+		for _, feedbackType := range feedbackTypes {
+			db = db.Or("feedback_type = ?", feedbackType)
+		}
+		tx.Where(db)
 	}
 	if beginTime != nil {
 		tx.Where("time_stamp >= ?", d.convertTimeZone(beginTime))
@@ -1021,7 +1049,11 @@ func (d *SQLDatabase) GetFeedbackStream(ctx context.Context, batchSize int, scan
 			Table(d.FeedbackTable()).
 			Select("feedback_type, user_id, item_id, value, time_stamp, comment")
 		if len(scan.FeedbackTypes) > 0 {
-			tx.Where("feedback_type IN ?", scan.FeedbackTypes)
+			db := d.gormDB
+			for _, feedbackType := range scan.FeedbackTypes {
+				db = FeedbackTypeExpressionToSQL(db, feedbackType)
+			}
+			tx.Where(db)
 		}
 		if scan.BeginTime != nil {
 			tx.Where("time_stamp >= ?", d.convertTimeZone(scan.BeginTime))
@@ -1079,7 +1111,7 @@ func (d *SQLDatabase) GetUserItemFeedback(ctx context.Context, userId, itemId st
 	tx := d.gormDB.WithContext(ctx)
 	if d.driver == ClickHouse {
 		tx = tx.Table(d.UserFeedbackTable()).
-			Select("feedback_type, user_id, item_id, sumMerge(value) AS value, anyMerge(time_stamp) AS time_stamp, anyMerge(comment) AS comment").
+			Select("feedback_type, user_id, item_id, sum(value) AS value, any(time_stamp) AS time_stamp, any(comment) AS comment").
 			Group("feedback_type, user_id, item_id")
 	} else {
 		tx = tx.Table(d.FeedbackTable()).
@@ -1087,7 +1119,11 @@ func (d *SQLDatabase) GetUserItemFeedback(ctx context.Context, userId, itemId st
 	}
 	tx.Where("user_id = ? AND item_id = ?", userId, itemId)
 	if len(feedbackTypes) > 0 {
-		tx.Where("feedback_type IN ?", feedbackTypes)
+		db := d.gormDB
+		for _, feedbackType := range feedbackTypes {
+			db = db.Or("feedback_type = ?", feedbackType)
+		}
+		tx.Where(db)
 	}
 	result, err := tx.Rows()
 	if err != nil {
