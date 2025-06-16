@@ -358,6 +358,8 @@ func (s *RestServer) CreateWebService() {
 		Param(ws.PathParameter("feedback-type", "Type of returned feedbacks").DataType("string")).
 		Param(ws.QueryParameter("cursor", "Cursor for the next page").DataType("string")).
 		Param(ws.QueryParameter("n", "Number of returned feedbacks").DataType("integer")).
+		Param(ws.QueryParameter("start-time", "Start time of returned feedbacks").DataType("integer")).
+		Param(ws.QueryParameter("end-time", "End time of returned feedbacks").DataType("integer")).
 		Returns(http.StatusOK, "OK", FeedbackIterator{}).
 		Writes(FeedbackIterator{}))
 	ws.Route(ws.GET("/feedback/{feedback-type}/{user-id}/{item-id}").To(s.getTypedUserItemFeedback).
@@ -1876,7 +1878,28 @@ func (s *RestServer) getTypedFeedback(request *restful.Request, response *restfu
 		BadRequest(response, err)
 		return
 	}
-	cursor, feedback, err := s.DataClient.GetFeedback(ctx, cursor, n, nil, s.Config.Now(), feedbackType)
+	startTime, err := ParseInt(request, "start-time", 0)
+	if err != nil {
+		BadRequest(response, err)
+		return
+	}
+	endTime, err := ParseInt(request, "end-time", 0)
+	if err != nil {
+		BadRequest(response, err)
+		return
+	}
+	var sTime, eTime *time.Time
+	if startTime > 0 {
+		tm := time.Unix(int64(startTime), 0)
+		sTime = &tm
+	}
+	if endTime > 0 {
+		tm := time.Unix(int64(endTime), 0)
+		eTime = &tm
+	} else {
+		eTime = s.Config.Now()
+	}
+	cursor, feedback, err := s.DataClient.GetFeedback(ctx, cursor, n, sTime, eTime, feedbackType)
 	if err != nil {
 		InternalServerError(response, err)
 		return
