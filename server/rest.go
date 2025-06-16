@@ -387,6 +387,8 @@ func (s *RestServer) CreateWebService() {
 		Param(ws.HeaderParameter("X-API-Key", "API key").DataType("string")).
 		Param(ws.PathParameter("user-id", "User ID of returned feedbacks").DataType("string")).
 		Param(ws.PathParameter("feedback-type", "Type of returned feedbacks").DataType("string")).
+		Param(ws.QueryParameter("start-time", "Start time of returned feedbacks").DataType("integer")).
+		Param(ws.QueryParameter("end-time", "End time of returned feedbacks").DataType("integer")).
 		Returns(http.StatusOK, "OK", []data.Feedback{}).
 		Writes([]data.Feedback{}))
 	ws.Route(ws.GET("/user/{user-id}/feedback").To(s.getFeedbackByUser).
@@ -637,7 +639,7 @@ func (s *RestServer) SearchDocuments(collection, subset string, categories []str
 
 	readItems := mapset.NewSet[string]()
 	if userId != "" {
-		feedback, err := s.DataClient.GetUserFeedback(ctx, userId, s.Config.Now())
+		feedback, err := s.DataClient.GetUserFeedback(ctx, userId, nil, s.Config.Now())
 		if err != nil {
 			InternalServerError(response, err)
 			return
@@ -870,7 +872,7 @@ type recommendContext struct {
 
 func (s *RestServer) createRecommendContext(ctx context.Context, userId string, categories []string, n int) (*recommendContext, error) {
 	// pull historical feedback
-	userFeedback, err := s.DataClient.GetUserFeedback(ctx, userId, s.Config.Now())
+	userFeedback, err := s.DataClient.GetUserFeedback(ctx, userId, nil, s.Config.Now())
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -947,7 +949,7 @@ func (s *RestServer) RecommendUserBased(ctx *recommendContext) error {
 		}
 		for _, user := range similarUsers {
 			// load historical feedback
-			feedbacks, err := s.DataClient.GetUserFeedback(ctx.context, user.Id, s.Config.Now(), s.Config.Recommend.DataSource.PositiveFeedbackTypes...)
+			feedbacks, err := s.DataClient.GetUserFeedback(ctx.context, user.Id, nil, s.Config.Now(), s.Config.Recommend.DataSource.PositiveFeedbackTypes...)
 			if err != nil {
 				return errors.Trace(err)
 			}
@@ -1409,7 +1411,28 @@ func (s *RestServer) getTypedFeedbackByUser(request *restful.Request, response *
 		return
 	}
 	userId := request.PathParameter("user-id")
-	feedback, err := s.DataClient.GetUserFeedback(ctx, userId, s.Config.Now(), feednackTypeExpr)
+	startTime, err := ParseInt(request, "start-time", 0)
+	if err != nil {
+		BadRequest(response, err)
+		return
+	}
+	endTime, err := ParseInt(request, "end-time", 0)
+	if err != nil {
+		BadRequest(response, err)
+		return
+	}
+	var sTime, eTime *time.Time
+	if startTime > 0 {
+		tm := time.Unix(int64(startTime), 0)
+		sTime = &tm
+	}
+	if endTime > 0 {
+		tm := time.Unix(int64(endTime), 0)
+		eTime = &tm
+	} else {
+		eTime = s.Config.Now()
+	}
+	feedback, err := s.DataClient.GetUserFeedback(ctx, userId, sTime, eTime, feednackTypeExpr)
 	if err != nil {
 		InternalServerError(response, err)
 		return
@@ -1424,7 +1447,7 @@ func (s *RestServer) getFeedbackByUser(request *restful.Request, response *restf
 		ctx = request.Request.Context()
 	}
 	userId := request.PathParameter("user-id")
-	feedback, err := s.DataClient.GetUserFeedback(ctx, userId, s.Config.Now())
+	feedback, err := s.DataClient.GetUserFeedback(ctx, userId, nil, s.Config.Now())
 	if err != nil {
 		InternalServerError(response, err)
 		return

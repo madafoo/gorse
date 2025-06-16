@@ -801,7 +801,7 @@ func (m *Master) getTypedFeedbackByUser(request *restful.Request, response *rest
 		return
 	}
 	userId := request.PathParameter("user-id")
-	feedback, err := m.DataClient.GetUserFeedback(ctx, userId, m.Config.Now(), feedbackTypeExpr)
+	feedback, err := m.DataClient.GetUserFeedback(ctx, userId, nil, m.Config.Now(), feedbackTypeExpr)
 	if err != nil {
 		server.InternalServerError(response, err)
 		return

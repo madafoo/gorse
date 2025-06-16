@@ -532,15 +532,22 @@ func (db *MongoDB) GetUserStream(ctx context.Context, batchSize int) (chan []Use
 }
 
 // GetUserFeedback returns feedback of a user from MongoDB.
-func (db *MongoDB) GetUserFeedback(ctx context.Context, userId string, endTime *time.Time, feedbackTypes ...expression.FeedbackTypeExpression) ([]Feedback, error) {
+func (db *MongoDB) GetUserFeedback(ctx context.Context, userId string, beginTime, endTime *time.Time, feedbackTypes ...expression.FeedbackTypeExpression) ([]Feedback, error) {
 	c := db.client.Database(db.dbName).Collection(db.FeedbackTable())
 	var r *mongo.Cursor
 	var err error
 	filter := bson.M{
 		"feedbackkey.userid": bson.M{"$eq": userId},
 	}
+	tr := bson.M{}
+	if beginTime != nil {
+		tr["$gte"] = beginTime
+	}
 	if endTime != nil {
-		filter["timestamp"] = bson.M{"$lte": endTime}
+		tr["$lte"] = endTime
+	}
+	if len(tr) > 0 {
+		filter["timestamp"] = tr
 	}
 	if len(feedbackTypes) > 0 {
 		var conditions []bson.M

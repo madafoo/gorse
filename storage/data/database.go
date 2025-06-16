@@ -270,7 +270,7 @@ type Database interface {
 	GetUser(ctx context.Context, userId string) (User, error)
 	ModifyUser(ctx context.Context, userId string, patch UserPatch) error
 	GetUsers(ctx context.Context, cursor string, n int) (string, []User, error)
-	GetUserFeedback(ctx context.Context, userId string, endTime *time.Time, feedbackTypes ...expression.FeedbackTypeExpression) ([]Feedback, error)
+	GetUserFeedback(ctx context.Context, userId string, beginTime, endTime *time.Time, feedbackTypes ...expression.FeedbackTypeExpression) ([]Feedback, error)
 	GetUserItemFeedback(ctx context.Context, userId, itemId string, feedbackTypes ...string) ([]Feedback, error)
 	DeleteUserItemFeedback(ctx context.Context, userId, itemId string, feedbackTypes ...string) (int, error)
 	BatchInsertFeedback(ctx context.Context, feedback []Feedback, insertUser, insertItem, overwrite bool) error

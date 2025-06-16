@@ -121,7 +121,7 @@ func (NoDatabase) GetUserStream(_ context.Context, _ int) (chan []User, chan err
 }
 
 // GetUserFeedback method of NoDatabase returns ErrNoDatabase.
-func (NoDatabase) GetUserFeedback(context.Context, string, *time.Time, ...expression.FeedbackTypeExpression) ([]Feedback, error) {
+func (NoDatabase) GetUserFeedback(context.Context, string, *time.Time, *time.Time, ...expression.FeedbackTypeExpression) ([]Feedback, error) {
 	return nil, ErrNoDatabase
 }
 

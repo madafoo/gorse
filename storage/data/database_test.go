@@ -339,14 +339,14 @@ func (suite *baseTestSuite) TestFeedback() {
 	suite.NoError(err)
 	suite.Equal(Item{ItemId: "0", Labels: []any{"b"}, Timestamp: time.Date(1996, 4, 8, 10, 0, 0, 0, time.UTC)}, item)
 	// Get typed feedback by user
-	ret, err = suite.Database.GetUserFeedback(ctx, "2", lo.ToPtr(time.Now()), expression.MustParseFeedbackTypeExpression(positiveFeedbackType))
+	ret, err = suite.Database.GetUserFeedback(ctx, "2", nil, lo.ToPtr(time.Now()), expression.MustParseFeedbackTypeExpression(positiveFeedbackType))
 	suite.NoError(err)
 	if suite.Equal(1, len(ret)) {
 		suite.Equal("2", ret[0].UserId)
 		suite.Equal("4", ret[0].ItemId)
 	}
 	// Get all feedback by user
-	ret, err = suite.Database.GetUserFeedback(ctx, "2", lo.ToPtr(time.Now()))
+	ret, err = suite.Database.GetUserFeedback(ctx, "2", nil, lo.ToPtr(time.Now()))
 	suite.NoError(err)
 	suite.Equal(2, len(ret))
 	// Get typed feedback by item
@@ -367,7 +367,7 @@ func (suite *baseTestSuite) TestFeedback() {
 	suite.NoError(err)
 	err = suite.Database.Optimize()
 	suite.NoError(err)
-	ret, err = suite.Database.GetUserFeedback(ctx, "0", lo.ToPtr(time.Now()), expression.MustParseFeedbackTypeExpression(positiveFeedbackType))
+	ret, err = suite.Database.GetUserFeedback(ctx, "0", nil, lo.ToPtr(time.Now()), expression.MustParseFeedbackTypeExpression(positiveFeedbackType))
 	suite.NoError(err)
 	suite.Equal(1, len(ret))
 	suite.Equal("override", ret[0].Comment)
@@ -379,7 +379,7 @@ func (suite *baseTestSuite) TestFeedback() {
 	suite.NoError(err)
 	err = suite.Database.Optimize()
 	suite.NoError(err)
-	ret, err = suite.Database.GetUserFeedback(ctx, "0", lo.ToPtr(time.Now()), expression.MustParseFeedbackTypeExpression(positiveFeedbackType))
+	ret, err = suite.Database.GetUserFeedback(ctx, "0", nil, lo.ToPtr(time.Now()), expression.MustParseFeedbackTypeExpression(positiveFeedbackType))
 	suite.NoError(err)
 	suite.Equal(1, len(ret))
 	suite.Equal("override", ret[0].Comment)
@@ -574,7 +574,7 @@ func (suite *baseTestSuite) TestDeleteUser() {
 	suite.NoError(err)
 	_, err = suite.Database.GetUser(ctx, "a")
 	suite.NotNil(err, "failed to delete user")
-	ret, err := suite.Database.GetUserFeedback(ctx, "a", lo.ToPtr(time.Now()), expression.MustParseFeedbackTypeExpression(positiveFeedbackType))
+	ret, err := suite.Database.GetUserFeedback(ctx, "a", nil, lo.ToPtr(time.Now()), expression.MustParseFeedbackTypeExpression(positiveFeedbackType))
 	suite.NoError(err)
 	suite.Equal(0, len(ret))
 	_, ret, err = suite.Database.GetFeedback(ctx, "", 100, nil, lo.ToPtr(time.Now()), positiveFeedbackType)
@@ -733,7 +733,7 @@ func (suite *baseTestSuite) TestTimezone() {
 	suite.NoError(err)
 	suite.Equal(3, len(feedback))
 	// get user feedback
-	feedback, err = suite.Database.GetUserFeedback(ctx, "1", lo.ToPtr(time.Now()))
+	feedback, err = suite.Database.GetUserFeedback(ctx, "1", nil, lo.ToPtr(time.Now()))
 	suite.NoError(err)
 	suite.Equal(2, len(feedback))
 	// get item feedback

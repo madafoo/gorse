@@ -774,7 +774,7 @@ func (d *SQLDatabase) GetUserStream(ctx context.Context, batchSize int) (chan []
 }
 
 // GetUserFeedback returns feedback of a user from MySQL.
-func (d *SQLDatabase) GetUserFeedback(ctx context.Context, userId string, endTime *time.Time, feedbackTypes ...expression.FeedbackTypeExpression) ([]Feedback, error) {
+func (d *SQLDatabase) GetUserFeedback(ctx context.Context, userId string, beginTime, endTime *time.Time, feedbackTypes ...expression.FeedbackTypeExpression) ([]Feedback, error) {
 	tx := d.gormDB.WithContext(ctx)
 	if d.driver == ClickHouse {
 		tx = tx.Table(d.UserFeedbackTable())
@@ -784,11 +784,17 @@ func (d *SQLDatabase) GetUserFeedback(ctx context.Context, userId string, endTim
 	if d.driver == ClickHouse {
 		tx.Select("feedback_type, user_id, item_id, sum(value), any(time_stamp) AS time_stamp, any(comment) AS comment").
 			Group("feedback_type, user_id, item_id")
+		if beginTime != nil {
+			tx.Where("time_stamp >= ?", d.convertTimeZone(beginTime))
+		}
 		if endTime != nil {
 			tx.Having("time_stamp <= ?", d.convertTimeZone(endTime))
 		}
 	} else {
 		tx.Select("feedback_type, user_id, item_id, value, time_stamp, comment")
+		if beginTime != nil {
+			tx.Where("time_stamp >= ?", d.convertTimeZone(beginTime))
+		}
 		if endTime != nil {
 			tx.Where("time_stamp <= ?", d.convertTimeZone(endTime))
 		}

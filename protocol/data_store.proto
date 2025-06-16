@@ -150,8 +150,9 @@ message GetUsersResponse {
 
 message GetUserFeedbackRequest {
   string user_id = 1;
-  google.protobuf.Timestamp end_time = 2;
-  repeated FeedbackTypeExpression feedback_types = 3;
+  google.protobuf.Timestamp begin_time = 2;
+  google.protobuf.Timestamp end_time = 3;
+  repeated FeedbackTypeExpression feedback_types = 4;
 }
 
 message GetUserItemFeedbackRequest {

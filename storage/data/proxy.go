@@ -282,7 +282,10 @@ func (p *ProxyServer) GetUsers(ctx context.Context, in *protocol.GetUsersRequest
 }
 
 func (p *ProxyServer) GetUserFeedback(ctx context.Context, in *protocol.GetUserFeedbackRequest) (*protocol.GetFeedbackResponse, error) {
-	var endTime *time.Time
+	var beginTime, endTime *time.Time
+	if in.BeginTime != nil {
+		beginTime = lo.ToPtr(in.BeginTime.AsTime())
+	}
 	if in.EndTime != nil {
 		endTime = lo.ToPtr(in.EndTime.AsTime())
 	}
@@ -290,7 +293,7 @@ func (p *ProxyServer) GetUserFeedback(ctx context.Context, in *protocol.GetUserF
 	for i, t := range in.FeedbackTypes {
 		types[i].FromPB(t)
 	}
-	feedback, err := p.database.GetUserFeedback(ctx, in.UserId, endTime, types...)
+	feedback, err := p.database.GetUserFeedback(ctx, in.UserId, beginTime, endTime, types...)
 	if err != nil {
 		return nil, err
 	}
@@ -773,8 +776,11 @@ func (p ProxyClient) GetUsers(ctx context.Context, cursor string, n int) (string
 	return resp.Cursor, users, nil
 }
 
-func (p ProxyClient) GetUserFeedback(ctx context.Context, userId string, endTime *time.Time, feedbackTypes ...expression.FeedbackTypeExpression) ([]Feedback, error) {
+func (p ProxyClient) GetUserFeedback(ctx context.Context, userId string, beginTime, endTime *time.Time, feedbackTypes ...expression.FeedbackTypeExpression) ([]Feedback, error) {
 	req := &protocol.GetUserFeedbackRequest{UserId: userId}
+	if beginTime != nil {
+		req.BeginTime = timestamppb.New(*beginTime)
+	}
 	if endTime != nil {
 		req.EndTime = timestamppb.New(*endTime)
 	}

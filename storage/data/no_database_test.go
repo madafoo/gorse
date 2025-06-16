@@ -70,7 +70,7 @@ func TestNoDatabase(t *testing.T) {
 	assert.ErrorIs(t, err, ErrNoDatabase)
 	err = database.BatchInsertFeedback(ctx, nil, false, false, false)
 	assert.ErrorIs(t, err, ErrNoDatabase)
-	_, err = database.GetUserFeedback(ctx, "", lo.ToPtr(time.Now()))
+	_, err = database.GetUserFeedback(ctx, "", nil, lo.ToPtr(time.Now()))
 	assert.ErrorIs(t, err, ErrNoDatabase)
 	_, err = database.GetItemFeedback(ctx, "")
 	assert.ErrorIs(t, err, ErrNoDatabase)
