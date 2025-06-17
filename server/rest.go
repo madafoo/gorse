@@ -1639,7 +1639,7 @@ func (s *RestServer) modifyItem(request *restful.Request, response *restful.Resp
 	}
 	// add item to latest items cache
 	if patch.Timestamp != nil {
-		if err := s.CacheClient.UpdateScores(ctx, []string{cache.NonPersonalized}, proto.String(cache.Latest), itemId, cache.ScorePatch{Score: proto.Float64(float64(patch.Timestamp.Unix()))}); err != nil {
+		if err := s.CacheClient.UpdateScores(ctx, []string{cache.NonPersonalized}, proto.String(cache.Latest), itemId, cache.ScorePatch{Score: proto.Float64(float64(patch.Timestamp.Unix())), Categories: withWildCard(patch.Categories)}); err != nil {
 			InternalServerError(response, err)
 			return
 		}
