@@ -26,8 +26,8 @@ import (
 
 	client "github.com/gorse-io/gorse-go"
 	"github.com/redis/rueidis"
+	"github.com/gorse-io/gorse/storage/cache"
 	"github.com/stretchr/testify/suite"
-	"github.com/zhenghaoz/gorse/storage/cache"
 )
 
 const (
